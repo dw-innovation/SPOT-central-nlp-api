@@ -8,6 +8,7 @@ from fastapi import FastAPI, HTTPException, Request, Response, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from health import run_health_checks
 from llama_inference import LlamaInference
 from llmhub_inference import LLMHubInference
 from loguru import logger
@@ -87,6 +88,25 @@ class RequestBody(BaseModel):
     model: str
     username: str
     environment: str
+
+
+@app.get("/health")
+async def health() -> JSONResponse:
+    """
+    Report whether this service can actually do its job.
+
+    Returns 200 while every critical dependency answers and 503 otherwise, so
+    an uptime check needs no body parsing, while the body names each
+    dependency with its latency so an alert can say what broke.
+
+    Unlike /docs, this exercises the dependencies a transformation needs, and
+    performs no inference, so it is cheap enough to poll continuously.
+    """
+    report, healthy = await run_health_checks(client)
+    return JSONResponse(
+        content=report,
+        status_code=status.HTTP_200_OK if healthy else status.HTTP_503_SERVICE_UNAVAILABLE,
+    )
 
 
 @app.exception_handler(HTTPException)
