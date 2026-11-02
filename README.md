@@ -88,6 +88,52 @@ Below are the most relevant environment variables used in this module. For full 
 - Enriches YAML with semantic OSM tag bundles via Elasticsearch
 - Stores and retrieves sessions from MongoDB
 - Validates, filters, and forwards queries to downstream APIs
+- Reports dependency health at `/health` for uptime monitoring
+
+---
+
+## 🩺 Health Endpoint
+
+`GET /health` reports whether the service can actually do its job, checking the
+dependencies a transformation needs — **without performing any inference**, so
+it is cheap enough to poll continuously.
+
+```bash
+curl -s https://kid2spotnlpapi.lab-dw.com/health | jq
+```
+
+```json
+{
+  "status": "ok",
+  "timestamp": "2026-09-30T09:12:44+0000",
+  "durationMs": 128,
+  "model": "GPT-oss-120b",
+  "checks": {
+    "tagSearch": { "ok": true, "latencyMs": 41, "critical": true,
+                   "detail": "tag lookup ok (implies Elasticsearch is answering)" },
+    "llmHub":    { "ok": true, "latencyMs": 87, "critical": true,
+                   "detail": "reachable, credentials accepted (no inference performed)" },
+    "mongodb":   { "ok": true, "latencyMs": 12, "critical": false, "detail": "ping ok" }
+  }
+}
+```
+
+Returns **200** while every *critical* dependency answers and **503** otherwise,
+so an uptime check needs no body parsing.
+
+MongoDB is deliberately **not** critical: it is only used to log inference
+results, and `log_to_mongodb` already swallows its failures, so an outage there
+cannot break a transformation. It is reported under `warnings` instead, so a
+logging problem is visible without taking a working service out of rotation.
+
+Why this exists: `/docs` proves only that the process is serving. During the
+Elasticsearch outage this API stayed up and answered invalid input instantly
+while every real request hung, so `/docs` looked healthy throughout. `/health`
+exercises the tag search, which is the call that was failing.
+
+| Variable | Description |
+|----------|-------------|
+| `HEALTH_TIMEOUT_SECONDS` | Per-check deadline, default `5`. A health check that can hang is worse than none. |
 
 ---
 
