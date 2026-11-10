@@ -1,12 +1,10 @@
-FROM python:3.9.12-slim
+FROM python:3.12-slim-bookworm
 
 # ENV http_proxy=ADD_PROXY
 # ENV https_proxy=ADD_PROXY
 
-# No apt layer: bullseye is end of life, so its security pocket still
-# publishes an index but no longer serves the packages, and installing
-# python3-pip 404s on the python3.9 it depends on. The official Python image
-# already ships pip, so nothing here needed apt in the first place.
+# No apt layer: the official Python image already ships pip, and nothing
+# else here needs a system package.
 RUN pip install --no-cache-dir --upgrade pip
 
 WORKDIR /app
